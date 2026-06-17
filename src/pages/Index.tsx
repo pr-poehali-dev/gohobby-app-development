@@ -1,26 +1,26 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '@/components/ui/icon';
-import { startYandexLogin, getProfile, saveProfile, logout, UserProfile } from '@/lib/api';
+import {
+  startYandexLogin, getProfile, saveProfile, logout,
+  getFeed, swipeActivity, createActivity, getMyActivities,
+  UserProfile, ActivityCard,
+} from '@/lib/api';
 
-const SQUASH = 'https://cdn.poehali.dev/projects/903a8275-c14c-4a10-a3b0-d0ff80d0e562/files/cd6057af-4edb-40b4-ac87-72d0d7e5309d.jpg';
-const BOARD = 'https://cdn.poehali.dev/projects/903a8275-c14c-4a10-a3b0-d0ff80d0e562/files/156f4f57-d35e-4373-91dd-2798c2b65c5f.jpg';
-const ART = 'https://cdn.poehali.dev/projects/903a8275-c14c-4a10-a3b0-d0ff80d0e562/files/3ae4a4a1-9297-4940-b843-af50c884ede3.jpg';
+type MyActivity = ActivityCard & { is_active: boolean; joined_count: number };
+
+const HOBBY_LIST = [
+  '🎾 Спорт', '🎲 Настолки', '🎨 Творчество', '🎸 Музыка',
+  '📚 Книги', '🥾 Походы', '🍳 Кулинария', '📷 Фото',
+  '🧗 Скалолазание', '♟️ Шахматы',
+];
 
 type Screen = 'onboarding' | 'auth' | 'setup' | 'app';
 type Tab = 'feed' | 'create' | 'chats' | 'profile';
-
-const HOBBY_LIST = ['🎾 Спорт', '🎲 Настолки', '🎨 Творчество', '🎸 Музыка', '📚 Книги', '🥾 Походы', '🍳 Кулинария', '📷 Фото', '🧗 Скалолазание', '♟️ Шахматы'];
 
 const SLIDES = [
   { icon: 'Compass', title: 'Это не дейтинг', text: 'GoHobby — про общие активности, а не романтику. Ищи партнёров по интересам.', from: '#FF5E62', to: '#FF9966' },
   { icon: 'CalendarClock', title: 'Создавай слоты', text: 'Сквош завтра в 19:00? Настолки в субботу? Опубликуй активность и найди компанию.', from: '#7B2FF7', to: '#FF5E62' },
   { icon: 'Sparkles', title: 'Свайпай и матчись', text: 'Вправо — «хочу участвовать», влево — «не интересно». Совпадение открывает чат.', from: '#36D1DC', to: '#7B2FF7' },
-];
-
-const CARDS = [
-  { name: 'Анна, 26', img: SQUASH, hobby: '🎾 Сквош', activity: 'Ищу партнёра для игры в сквош', when: 'Завтра · 19:00', place: 'СК «Олимп», м. Спортивная', tags: ['Новичок ок', 'Ракетка есть'] },
-  { name: 'Дмитрий, 31', img: BOARD, hobby: '🎲 Настолки', activity: 'Вечер Каркассона и Манчкина', when: 'Сб · 18:30', place: 'Антикафе «Точка», центр', tags: ['4 места', 'Чай в подарок'] },
-  { name: 'Лера, 24', img: ART, hobby: '🎨 Творчество', activity: 'Совместный пленэр с акварелью', when: 'Вс · 12:00', place: 'Парк Горького, у пруда', tags: ['Краски свои', 'Любой уровень'] },
 ];
 
 export default function Index() {
@@ -32,10 +32,7 @@ export default function Index() {
 
   useEffect(() => {
     getProfile().then((p) => {
-      if (p) {
-        setUser(p);
-        setScreen(p.birthDate ? 'app' : 'setup');
-      }
+      if (p) { setUser(p); setScreen(p.birthDate ? 'app' : 'setup'); }
       setChecking(false);
     });
   }, []);
@@ -43,8 +40,8 @@ export default function Index() {
   if (checking) {
     return (
       <Phone>
-        <div className="h-full flex items-center justify-center bg-gradient-to-br from-grape via-coral to-sunset text-white">
-          <Icon name="LoaderCircle" size={40} className="animate-spin" />
+        <div className="h-full flex items-center justify-center bg-gradient-to-br from-[#7B2FF7] via-[#FF5E62] to-[#FF9966]">
+          <Icon name="LoaderCircle" size={40} className="animate-spin text-white" />
         </div>
       </Phone>
     );
@@ -69,7 +66,7 @@ export default function Index() {
               ))}
             </div>
             <button
-              onClick={() => (slide < SLIDES.length - 1 ? setSlide(slide + 1) : setScreen('auth'))}
+              onClick={() => slide < SLIDES.length - 1 ? setSlide(slide + 1) : setScreen('auth')}
               className="w-full bg-white text-gray-900 font-display font-bold text-lg py-4 rounded-2xl shadow-xl active:scale-95 transition-transform"
             >
               {slide < SLIDES.length - 1 ? 'Дальше' : 'Поехали!'}
@@ -86,15 +83,18 @@ export default function Index() {
   if (screen === 'auth') {
     return (
       <Phone>
-        <div className="h-full flex flex-col justify-end px-8 pb-12 bg-gradient-to-br from-grape via-coral to-sunset text-white">
+        <div className="h-full flex flex-col justify-end px-8 pb-12 bg-gradient-to-br from-[#7B2FF7] via-[#FF5E62] to-[#FF9966] text-white">
           <div className="flex-1 flex flex-col items-center justify-center">
             <div className="font-display font-black text-5xl tracking-tight">GoHobby</div>
             <p className="text-white/80 mt-3 text-center text-lg">Хобби веселее вместе</p>
           </div>
-          <button onClick={() => startYandexLogin().catch(() => alert('Добавьте ключи Яндекс ID в настройках проекта'))} className="w-full bg-white text-gray-900 font-display font-bold py-4 rounded-2xl mb-3 flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-xl">
+          <button
+            onClick={() => startYandexLogin().catch(() => alert('Сначала добавьте YANDEX_CLIENT_ID в настройках проекта'))}
+            className="w-full bg-white text-gray-900 font-display font-bold py-4 rounded-2xl mb-3 flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-xl"
+          >
             <span className="text-xl font-black text-[#FF0000]">Я</span> Войти через Яндекс ID
           </button>
-          <button className="w-full bg-white/15 backdrop-blur border border-white/30 text-white font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform opacity-60">
+          <button className="w-full bg-white/15 backdrop-blur border border-white/30 text-white font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 opacity-60">
             <Icon name="Mail" size={20} /> Google — скоро
           </button>
           <p className="text-center text-white/60 text-xs mt-6">Регистрируясь, вы принимаете условия сервиса</p>
@@ -115,10 +115,12 @@ export default function Index() {
     <Phone>
       <div className="h-full flex flex-col bg-[#F7F6FB]">
         <div className="flex-1 overflow-hidden">
-          {tab === 'feed' && <Feed />}
-          {tab === 'create' && <CreateSlot />}
+          {tab === 'feed' && <Feed user={user} />}
+          {tab === 'create' && <CreateSlot onCreated={() => setTab('feed')} />}
           {tab === 'chats' && <Chats />}
-          {tab === 'profile' && <Profile user={user} onLogout={() => { logout(); setUser(null); setScreen('onboarding'); }} />}
+          {tab === 'profile' && (
+            <Profile user={user} onLogout={() => { logout(); setUser(null); setScreen('onboarding'); setSlide(0); }} />
+          )}
         </div>
         <NavBar tab={tab} setTab={setTab} />
       </div>
@@ -126,50 +128,7 @@ export default function Index() {
   );
 }
 
-function SetupProfile({ user, onDone }: { user: UserProfile; onDone: (u: UserProfile) => void }) {
-  const [name, setName] = useState(user.name || '');
-  const [birth, setBirth] = useState(user.birthDate || '');
-  const [hobbies, setHobbies] = useState<string[]>(user.hobbies || []);
-  const [custom, setCustom] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const toggle = (h: string) => {
-    setHobbies((prev) => prev.includes(h) ? prev.filter((x) => x !== h) : prev.length < 5 ? [...prev, h] : prev);
-  };
-
-  const submit = async () => {
-    setSaving(true);
-    const all = custom.trim() && !hobbies.includes(custom.trim()) ? [...hobbies, custom.trim()].slice(0, 5) : hobbies;
-    await saveProfile({ name, birthDate: birth || null, hobbies: all, photos: user.photos });
-    onDone({ ...user, name, birthDate: birth, hobbies: all });
-  };
-
-  return (
-    <div className="h-full overflow-y-auto px-6 pt-8 pb-8 bg-[#F7F6FB]">
-      <h1 className="font-display font-extrabold text-2xl mb-1">Паспорт хобби</h1>
-      <p className="text-gray-500 mb-6">Заполни профиль, чтобы начать</p>
-
-      <Label>Имя</Label>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Как тебя зовут" className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 mb-5 outline-none focus:border-grape" />
-
-      <Label>Дата рождения</Label>
-      <input type="date" value={birth || ''} onChange={(e) => setBirth(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 mb-5 outline-none focus:border-grape text-gray-700" />
-
-      <Label>Хобби (до 5)</Label>
-      <div className="flex flex-wrap gap-2 mb-3">
-        {HOBBY_LIST.map((h) => (
-          <button key={h} onClick={() => toggle(h)} className={`px-3.5 py-2 rounded-full text-sm font-semibold transition-all ${hobbies.includes(h) ? 'bg-gradient-to-r from-grape to-coral text-white shadow-md' : 'bg-white text-gray-700 border border-gray-200'}`}>{h}</button>
-        ))}
-      </div>
-      <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Своё хобби..." className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-6 outline-none focus:border-grape text-sm" />
-
-      <button disabled={!name || saving} onClick={submit} className="w-full bg-gradient-to-r from-grape to-coral text-white font-display font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-50">
-        {saving ? 'Сохраняем...' : 'Готово'}
-      </button>
-    </div>
-  );
-}
-
+// ─── PHONE SHELL ────────────────────────────────────────────────────────────
 function Phone({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-700 p-4 font-sans">
@@ -180,249 +139,418 @@ function Phone({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Feed() {
-  const [index, setIndex] = useState(0);
-  const [match, setMatch] = useState(false);
-  const [drag, setDrag] = useState(0);
-  const start = useRef<number | null>(null);
-  const card = CARDS[index % CARDS.length];
+// ─── SETUP PROFILE ──────────────────────────────────────────────────────────
+function SetupProfile({ user, onDone }: { user: UserProfile; onDone: (u: UserProfile) => void }) {
+  const [name, setName] = useState(user.name || '');
+  const [birth, setBirth] = useState(user.birthDate || '');
+  const [hobbies, setHobbies] = useState<string[]>(user.hobbies || []);
+  const [custom, setCustom] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const swipe = (dir: 'left' | 'right') => {
-    if (dir === 'right' && Math.random() > 0.35) {
-      setMatch(true);
-      setTimeout(() => { setMatch(false); setIndex((i) => i + 1); }, 1800);
-    } else {
-      setIndex((i) => i + 1);
-    }
-    setDrag(0);
+  const toggle = (h: string) =>
+    setHobbies((prev) => prev.includes(h) ? prev.filter((x) => x !== h) : prev.length < 5 ? [...prev, h] : prev);
+
+  const submit = async () => {
+    setSaving(true);
+    const all = custom.trim() && !hobbies.includes(custom.trim())
+      ? [...hobbies, custom.trim()].slice(0, 5) : hobbies;
+    await saveProfile({ name, birthDate: birth || null, hobbies: all, photos: user.photos });
+    onDone({ ...user, name, birthDate: birth, hobbies: all });
   };
+
+  return (
+    <div className="h-full overflow-y-auto px-6 pt-8 pb-8 bg-[#F7F6FB]">
+      <h1 className="font-display font-extrabold text-2xl mb-1">Паспорт хобби</h1>
+      <p className="text-gray-500 mb-6">Заполни профиль, чтобы начать</p>
+      <Label>Имя</Label>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Как тебя зовут"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 mb-5 outline-none focus:border-[#7B2FF7] font-sans" />
+      <Label>Дата рождения</Label>
+      <input type="date" value={birth} onChange={(e) => setBirth(e.target.value)}
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 mb-5 outline-none focus:border-[#7B2FF7] text-gray-700" />
+      <Label>Хобби (до 5)</Label>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {HOBBY_LIST.map((h) => (
+          <button key={h} onClick={() => toggle(h)}
+            className={`px-3.5 py-2 rounded-full text-sm font-semibold transition-all ${hobbies.includes(h) ? 'bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] text-white shadow-md' : 'bg-white text-gray-700 border border-gray-200'}`}>
+            {h}
+          </button>
+        ))}
+      </div>
+      <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Своё хобби..."
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-6 outline-none focus:border-[#7B2FF7] text-sm" />
+      <button disabled={!name || saving} onClick={submit}
+        className="w-full bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] text-white font-display font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-50">
+        {saving ? 'Сохраняем...' : 'Готово'}
+      </button>
+    </div>
+  );
+}
+
+// ─── FEED ───────────────────────────────────────────────────────────────────
+function Feed({ user }: { user: UserProfile | null }) {
+  const [cards, setCards] = useState<ActivityCard[]>([]);
+  const [idx, setIdx] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [match, setMatch] = useState<ActivityCard | null>(null);
+  const [drag, setDrag] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const startX = useRef<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const data = await getFeed();
+    setCards(data);
+    setIdx(0);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const card = cards[idx] ?? null;
+
+  const doSwipe = async (dir: 'left' | 'right') => {
+    if (!card || swiping) return;
+    setSwiping(true);
+    setDrag(0);
+    if (dir === 'right') {
+      const res = await swipeActivity(card.id, 'join');
+      if (res.match) {
+        setMatch(card);
+        setTimeout(() => { setMatch(null); setIdx((i) => i + 1); setSwiping(false); }, 2000);
+        return;
+      }
+    } else {
+      await swipeActivity(card.id, 'skip');
+    }
+    setIdx((i) => i + 1);
+    setSwiping(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-3 text-gray-400">
+        <Icon name="LoaderCircle" size={36} className="animate-spin text-[#7B2FF7]" />
+        <span className="text-sm">Загружаем активности...</span>
+      </div>
+    );
+  }
+
+  if (!card) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center px-8 text-center gap-4">
+        <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-[#7B2FF7]/10 to-[#FF5E62]/10 flex items-center justify-center">
+          <Icon name="Coffee" size={36} className="text-[#7B2FF7]" />
+        </div>
+        <h2 className="font-display font-extrabold text-xl">Активностей пока нет</h2>
+        <p className="text-gray-500 text-sm">Создай первый слот — и другие смогут к тебе присоединиться</p>
+        <button onClick={load} className="flex items-center gap-2 text-[#7B2FF7] font-semibold text-sm">
+          <Icon name="RefreshCw" size={16} /> Обновить
+        </button>
+      </div>
+    );
+  }
+
+  const spotsLeft = card.spots_left ?? (card.spots_total - 0);
+  const spotsPercent = Math.round((spotsLeft / card.spots_total) * 100);
 
   return (
     <div className="h-full flex flex-col">
       <header className="px-5 pt-5 pb-3 flex items-center justify-between">
-        <span className="font-display font-black text-2xl bg-gradient-to-r from-grape to-coral bg-clip-text text-transparent">GoHobby</span>
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-coral to-sunset flex items-center justify-center text-white"><Icon name="SlidersHorizontal" size={18} /></div>
+        <span className="font-display font-black text-2xl bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] bg-clip-text text-transparent">GoHobby</span>
+        <button onClick={load} className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF5E62] to-[#FF9966] flex items-center justify-center text-white active:scale-90 transition-transform">
+          <Icon name="RefreshCw" size={17} />
+        </button>
       </header>
 
-      <div className="flex-1 relative px-5">
+      <div className="flex-1 relative px-5 pb-2">
         <div
-          key={index}
-          className="absolute inset-x-5 top-0 bottom-0 rounded-3xl overflow-hidden shadow-2xl animate-scale-in select-none"
-          style={{ transform: `translateX(${drag}px) rotate(${drag / 25}deg)`, transition: start.current === null ? 'transform .3s' : 'none' }}
-          onPointerDown={(e) => { start.current = e.clientX; }}
-          onPointerMove={(e) => { if (start.current !== null) setDrag(e.clientX - start.current); }}
-          onPointerUp={() => { if (Math.abs(drag) > 100) swipe(drag > 0 ? 'right' : 'left'); else setDrag(0); start.current = null; }}
+          key={card.id}
+          className="absolute inset-x-5 top-0 bottom-0 rounded-3xl overflow-hidden shadow-2xl animate-scale-in select-none cursor-grab active:cursor-grabbing"
+          style={{ transform: `translateX(${drag}px) rotate(${drag / 25}deg)`, transition: startX.current === null ? 'transform .3s' : 'none' }}
+          onPointerDown={(e) => { startX.current = e.clientX; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
+          onPointerMove={(e) => { if (startX.current !== null) setDrag(e.clientX - startX.current); }}
+          onPointerUp={() => { if (Math.abs(drag) > 90) doSwipe(drag > 0 ? 'right' : 'left'); else setDrag(0); startX.current = null; }}
         >
-          <img src={card.img} alt="" className="w-full h-full object-cover pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+          {card.photo_url ? (
+            <img src={card.photo_url} alt="" className="w-full h-full object-cover pointer-events-none" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[#7B2FF7] to-[#FF5E62] flex items-center justify-center pointer-events-none">
+              <span className="text-8xl">{card.hobby.split(' ')[0]}</span>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
 
-          {drag > 40 && <Stamp text="УЧАСТВУЮ" color="#22c55e" rotate={-15} side="left" />}
-          {drag < -40 && <Stamp text="МИМО" color="#ef4444" rotate={15} side="right" />}
+          {drag > 40 && <SwipeStamp text="УЧАСТВУЮ" color="#22c55e" rotate={-12} left />}
+          {drag < -40 && <SwipeStamp text="МИМО" color="#ef4444" rotate={12} left={false} />}
 
+          {/* Hobby badge */}
           <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-sm font-bold text-gray-900">{card.hobby}</div>
 
-          <div className="absolute bottom-0 inset-x-0 p-5 text-white">
-            <div className="bg-white/15 backdrop-blur-md border border-white/25 rounded-2xl p-4 mb-3">
-              <div className="flex items-center gap-2 text-sm font-semibold mb-1"><Icon name="Megaphone" size={16} /> Предложение активности</div>
-              <p className="font-display font-bold text-lg leading-snug">{card.activity}</p>
-              <div className="flex items-center gap-3 mt-2 text-sm text-white/90">
-                <span className="flex items-center gap-1"><Icon name="Clock" size={14} />{card.when}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-1 text-sm text-white/90"><Icon name="MapPin" size={14} />{card.place}</div>
+          {/* Spots badge */}
+          <div className="absolute top-4 right-4">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold backdrop-blur ${spotsLeft <= 1 ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-900'}`}>
+              <Icon name="Users" size={14} />
+              {spotsLeft} из {card.spots_total}
             </div>
-            <h2 className="font-display font-extrabold text-2xl">{card.name}</h2>
-            <div className="flex gap-2 mt-2">
-              {card.tags.map((t) => <span key={t} className="bg-white/20 px-2.5 py-1 rounded-full text-xs font-medium">{t}</span>)}
+          </div>
+
+          {/* Spots bar */}
+          <div className="absolute top-[3.5rem] right-4 left-4 h-1 bg-white/30 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${spotsLeft <= 1 ? 'bg-red-400' : 'bg-green-400'}`} style={{ width: `${spotsPercent}%` }} />
+          </div>
+
+          <div className="absolute bottom-0 inset-x-0 p-5 text-white pointer-events-none">
+            <div className="bg-white/15 backdrop-blur-md border border-white/25 rounded-2xl p-4 mb-3">
+              <div className="flex items-center gap-2 text-sm font-semibold mb-1 opacity-80">
+                <Icon name="Megaphone" size={15} /> Предложение активности
+              </div>
+              <p className="font-display font-bold text-lg leading-snug">{card.description}</p>
+              <div className="flex items-center gap-3 mt-2 text-sm text-white/90">
+                <span className="flex items-center gap-1"><Icon name="Clock" size={14} />{formatDate(card.date)} · {card.time}</span>
+              </div>
+              <div className="flex items-center gap-1 mt-1 text-sm text-white/90">
+                <Icon name="MapPin" size={14} />{card.place}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {card.creator_avatar ? (
+                <img src={card.creator_avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white object-cover" />
+              ) : (
+                <div className="w-10 h-10 rounded-full border-2 border-white bg-white/20 flex items-center justify-center font-bold">{card.creator_name[0]}</div>
+              )}
+              <h2 className="font-display font-extrabold text-xl">{card.creator_name}</h2>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-6 py-6">
-        <button onClick={() => swipe('left')} className="w-16 h-16 rounded-full bg-white shadow-lg flex items-center justify-center text-red-500 active:scale-90 transition-transform border border-gray-100">
+      <div className="flex items-center justify-center gap-6 py-4">
+        <button onClick={() => doSwipe('left')} disabled={swiping}
+          className="w-16 h-16 rounded-full bg-white shadow-lg flex items-center justify-center text-red-500 active:scale-90 transition-transform border border-gray-100 disabled:opacity-50">
           <Icon name="X" size={30} />
         </button>
-        <button onClick={() => swipe('right')} className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 shadow-xl flex items-center justify-center text-white active:scale-90 transition-transform">
-          <Icon name="Check" size={36} />
+        <div className="text-center">
+          <div className="text-xs text-gray-400 font-medium">{cards.length - idx} в ленте</div>
+        </div>
+        <button onClick={() => doSwipe('right')} disabled={swiping}
+          className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 shadow-xl flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-50">
+          <Icon name="Check" size={30} />
         </button>
       </div>
 
-      {match && <MatchOverlay card={card} />}
+      {match && (
+        <div className="absolute inset-0 bg-gradient-to-br from-[#7B2FF7]/95 to-[#FF5E62]/95 backdrop-blur flex flex-col items-center justify-center text-white z-20 animate-fade-in rounded-[2rem]">
+          <div className="animate-pop text-center px-8">
+            <div className="font-display font-black text-5xl mb-2">Мэтч! 🎉</div>
+            <p className="text-white/90 text-lg mb-8">{match.creator_name} ждёт тебя</p>
+            <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white mx-auto shadow-2xl bg-white/20 flex items-center justify-center">
+              {match.creator_avatar
+                ? <img src={match.creator_avatar} alt="" className="w-full h-full object-cover" />
+                : <span className="text-5xl">{match.hobby.split(' ')[0]}</span>}
+            </div>
+            <p className="mt-6 text-white/80 text-sm">{match.hobby} · {formatDate(match.date)} · {match.time}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Stamp({ text, color, rotate, side }: { text: string; color: string; rotate: number; side: 'left' | 'right' }) {
+function SwipeStamp({ text, color, rotate, left }: { text: string; color: string; rotate: number; left: boolean }) {
   return (
-    <div className={`absolute top-12 ${side === 'left' ? 'left-6' : 'right-6'} border-4 rounded-xl px-4 py-2 font-display font-black text-2xl`} style={{ color, borderColor: color, transform: `rotate(${rotate}deg)` }}>
+    <div className={`absolute top-12 ${left ? 'left-6' : 'right-6'} border-4 rounded-xl px-4 py-2 font-display font-black text-2xl z-10`}
+      style={{ color, borderColor: color, transform: `rotate(${rotate}deg)` }}>
       {text}
     </div>
   );
 }
 
-function MatchOverlay({ card }: { card: typeof CARDS[number] }) {
-  return (
-    <div className="absolute inset-0 bg-gradient-to-br from-grape/95 to-coral/95 backdrop-blur flex flex-col items-center justify-center text-white z-20 animate-fade-in">
-      <div className="animate-pop text-center px-8">
-        <div className="font-display font-black text-5xl mb-2">Мэтч! 🎉</div>
-        <p className="text-white/90 text-lg mb-8">{card.name.split(',')[0]} тоже хочет участвовать</p>
-        <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white mx-auto shadow-2xl">
-          <img src={card.img} alt="" className="w-full h-full object-cover" />
-        </div>
-        <p className="mt-8 text-white/80">Открываем чат...</p>
-      </div>
-    </div>
-  );
-}
-
-function CreateSlot() {
+// ─── CREATE SLOT ─────────────────────────────────────────────────────────────
+function CreateSlot({ onCreated }: { onCreated: () => void }) {
   const [hobby, setHobby] = useState('🎾 Спорт');
+  const [desc, setDesc] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [place, setPlace] = useState('');
+  const [spots, setSpots] = useState(2);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    if (!desc || !date || !time || !place) return;
+    setSaving(true);
+    const res = await createActivity({ hobby, description: desc, date, time, place, spots });
+    setSaving(false);
+    if (res.ok) { setDone(true); setTimeout(() => { setDone(false); onCreated(); }, 1200); }
+  };
+
+  if (done) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center px-8 gap-4">
+        <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center animate-pop">
+          <Icon name="CheckCircle" size={40} className="text-white" />
+        </div>
+        <h2 className="font-display font-extrabold text-2xl">Слот создан!</h2>
+        <p className="text-gray-500 text-sm">Другие пользователи увидят его в ленте</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full overflow-y-auto px-5 pt-6 pb-24">
+    <div className="h-full overflow-y-auto px-5 pt-6 pb-8">
       <h1 className="font-display font-extrabold text-2xl mb-1">Создать слот</h1>
-      <p className="text-gray-500 mb-6">Опубликуй активность — её увидят в ленте</p>
+      <p className="text-gray-500 text-sm mb-5">Опубликуй активность — её увидят другие</p>
 
       <Label>Тип хобби</Label>
       <div className="flex flex-wrap gap-2 mb-5">
-        {HOBBY_LIST.slice(0, 6).map((h) => (
-          <button key={h} onClick={() => setHobby(h)} className={`px-3.5 py-2 rounded-full text-sm font-semibold transition-all ${hobby === h ? 'bg-gradient-to-r from-grape to-coral text-white shadow-md' : 'bg-white text-gray-700 border border-gray-200'}`}>{h}</button>
+        {HOBBY_LIST.map((h) => (
+          <button key={h} onClick={() => setHobby(h)}
+            className={`px-3 py-2 rounded-full text-sm font-semibold transition-all ${hobby === h ? 'bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] text-white shadow-md' : 'bg-white text-gray-700 border border-gray-200'}`}>
+            {h}
+          </button>
         ))}
       </div>
 
-      <Label>Дата и время</Label>
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <FakeInput icon="Calendar" text="Завтра" />
-        <FakeInput icon="Clock" text="19:00" />
+      <Label>Описание активности</Label>
+      <textarea value={desc} onChange={(e) => setDesc(e.target.value)}
+        placeholder="Напр: Ищу партнёра для игры в сквош, уровень новичок+"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-4 outline-none focus:border-[#7B2FF7] text-sm resize-none h-20" />
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <Label>Дата</Label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#7B2FF7] text-sm text-gray-700" />
+        </div>
+        <div>
+          <Label>Время</Label>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+            className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#7B2FF7] text-sm text-gray-700" />
+        </div>
       </div>
 
       <Label>Место</Label>
-      <FakeInput icon="MapPin" text="СК «Олимп», м. Спортивная" full />
-      <div className="h-32 rounded-2xl bg-gradient-to-br from-grape/10 to-coral/10 border border-dashed border-grape/30 flex items-center justify-center text-grape mt-3 mb-5">
-        <div className="text-center"><Icon name="Map" size={28} className="mx-auto mb-1" /><span className="text-sm font-medium">Отметить на карте</span></div>
+      <input value={place} onChange={(e) => setPlace(e.target.value)}
+        placeholder="Адрес или название места"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-4 outline-none focus:border-[#7B2FF7] text-sm" />
+
+      <Label>Количество участников</Label>
+      <div className="flex items-center gap-4 bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-6">
+        <button onClick={() => setSpots((s) => Math.max(1, s - 1))} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-lg active:scale-90 transition-transform">−</button>
+        <div className="flex-1 text-center">
+          <span className="font-display font-bold text-2xl bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] bg-clip-text text-transparent">{spots}</span>
+          <span className="text-gray-500 text-sm ml-2">{spots === 1 ? 'человек' : spots < 5 ? 'человека' : 'человек'}</span>
+        </div>
+        <button onClick={() => setSpots((s) => Math.min(10, s + 1))} className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7B2FF7] to-[#FF5E62] flex items-center justify-center font-bold text-white text-lg active:scale-90 transition-transform">+</button>
       </div>
 
-      <Label>Фото активности</Label>
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="aspect-square rounded-2xl bg-white border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300"><Icon name="ImagePlus" size={24} /></div>
-        ))}
-      </div>
-
-      <button className="w-full bg-gradient-to-r from-grape to-coral text-white font-display font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform">Опубликовать слот</button>
+      <button disabled={!desc || !date || !time || !place || saving} onClick={submit}
+        className="w-full bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] text-white font-display font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-50">
+        {saving ? 'Публикуем...' : 'Опубликовать слот'}
+      </button>
     </div>
   );
 }
 
+// ─── CHATS ──────────────────────────────────────────────────────────────────
 function Chats() {
-  const items = [
-    { name: 'Анна', img: SQUASH, last: 'Отлично, до завтра на сквоше! 🎾', time: '12:40', unread: 2 },
-    { name: 'Дмитрий', img: BOARD, last: 'Беру Каркассон с собой', time: 'Вчера', unread: 0 },
-    { name: 'Лера', img: ART, last: 'Какие краски брать?', time: 'Пн', unread: 0 },
-  ];
   return (
-    <div className="h-full overflow-y-auto px-5 pt-6 pb-24">
-      <h1 className="font-display font-extrabold text-2xl mb-5">Чаты</h1>
-      <div className="space-y-2">
-        {items.map((c, i) => (
-          <div key={i} className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm active:scale-[.98] transition-transform">
-            <img src={c.img} alt="" className="w-14 h-14 rounded-full object-cover" />
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center">
-                <span className="font-display font-bold">{c.name}</span>
-                <span className="text-xs text-gray-400">{c.time}</span>
-              </div>
-              <p className="text-sm text-gray-500 truncate">{c.last}</p>
-            </div>
-            {c.unread > 0 && <span className="w-6 h-6 rounded-full bg-coral text-white text-xs flex items-center justify-center font-bold">{c.unread}</span>}
-          </div>
-        ))}
+    <div className="h-full flex flex-col items-center justify-center px-8 text-center gap-4">
+      <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-[#7B2FF7]/10 to-[#FF5E62]/10 flex items-center justify-center">
+        <Icon name="MessageCircle" size={36} className="text-[#7B2FF7]" />
       </div>
-
-      <div className="mt-6 bg-white rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
-          <img src={SQUASH} alt="" className="w-10 h-10 rounded-full object-cover" />
-          <div><div className="font-display font-bold text-sm">Анна</div><div className="text-xs text-green-500">в сети</div></div>
-        </div>
-        <div className="space-y-2">
-          <Bubble me={false} text="Привет! Готова к сквошу завтра?" />
-          <Bubble me text="Да! Буду в 19:00 у входа 👍" />
-          <Bubble me={false} text="Отлично, до завтра на сквоше! 🎾" />
-        </div>
-        <div className="flex items-center gap-2 mt-4">
-          <div className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm text-gray-400">Сообщение...</div>
-          <button className="w-10 h-10 rounded-full bg-gradient-to-br from-grape to-coral text-white flex items-center justify-center"><Icon name="Send" size={18} /></button>
-        </div>
-      </div>
+      <h2 className="font-display font-extrabold text-xl">Чаты появятся после мэтча</h2>
+      <p className="text-gray-400 text-sm">Свайпни активность вправо и договорись о встрече</p>
     </div>
   );
 }
 
-function Bubble({ me, text }: { me: boolean; text: string }) {
-  return (
-    <div className={`flex ${me ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm ${me ? 'bg-gradient-to-r from-grape to-coral text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'}`}>{text}</div>
-    </div>
-  );
-}
-
+// ─── PROFILE ────────────────────────────────────────────────────────────────
 function Profile({ user, onLogout }: { user: UserProfile | null; onLogout: () => void }) {
+  const [myActivities, setMyActivities] = useState<MyActivity[]>([]);
+
+  useEffect(() => { getMyActivities().then(setMyActivities); }, []);
+
   const age = user?.birthDate ? Math.floor((Date.now() - new Date(user.birthDate).getTime()) / 3.15576e10) : null;
-  const hobbies = user?.hobbies?.length ? user.hobbies : ['🎨 Творчество', '📷 Фото', '🥾 Походы'];
-  const photos = user?.photos?.length ? user.photos : [ART, BOARD, SQUASH];
-  const avatar = user?.avatar || ART;
+  const hobbies = user?.hobbies?.length ? user.hobbies : [];
+  const avatar = user?.avatar || null;
 
   return (
     <div className="h-full overflow-y-auto pb-24">
-      <div className="h-44 bg-gradient-to-br from-grape via-coral to-sunset relative">
-        <button onClick={onLogout} className="absolute top-4 right-4 bg-white/20 backdrop-blur text-white rounded-full p-2 active:scale-90 transition-transform"><Icon name="LogOut" size={18} /></button>
+      <div className="h-44 bg-gradient-to-br from-[#7B2FF7] via-[#FF5E62] to-[#FF9966] relative">
+        <button onClick={onLogout} className="absolute top-4 right-4 bg-white/20 backdrop-blur text-white rounded-full p-2 active:scale-90 transition-transform">
+          <Icon name="LogOut" size={18} />
+        </button>
         <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
           <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden shadow-xl bg-white">
-            <img src={avatar} alt="" className="w-full h-full object-cover" />
+            {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : (
+              <div className="w-full h-full bg-gradient-to-br from-[#7B2FF7] to-[#FF5E62] flex items-center justify-center text-white font-display font-black text-3xl">
+                {user?.name?.[0] || '?'}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
       <div className="pt-16 px-5 text-center">
         <h1 className="font-display font-extrabold text-2xl">{user?.name || 'Гость'}{age ? `, ${age}` : ''}</h1>
-        <p className="text-gray-500">Паспорт хобби</p>
+        <p className="text-gray-500 text-sm">{user?.email || ''}</p>
 
-        <div className="grid grid-cols-3 gap-2 mt-5">
-          {photos.slice(0, 3).map((p, i) => (
-            <img key={i} src={p} className="aspect-square rounded-2xl object-cover" alt="" />
-          ))}
+        <div className="grid grid-cols-3 gap-3 mt-5">
+          <Stat n={String(myActivities.length)} l="Слотов" />
+          <Stat n={String(myActivities.filter((a) => !a.is_active).length)} l="Заполнено" />
+          <Stat n={user ? user.rating.toFixed(1) : '5.0'} l="Рейтинг" />
         </div>
 
-        <div className="text-left mt-6">
-          <Label>Мои хобби</Label>
-          <div className="flex flex-wrap gap-2">
-            {hobbies.map((h) => (
-              <span key={h} className="px-3.5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-grape to-coral text-white">{h}</span>
-            ))}
+        {hobbies.length > 0 && (
+          <div className="text-left mt-6">
+            <Label>Мои хобби</Label>
+            <div className="flex flex-wrap gap-2">
+              {hobbies.map((h) => (
+                <span key={h} className="px-3.5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] text-white">{h}</span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-3 gap-3 mt-6">
-          <Stat n="12" l="Активностей" />
-          <Stat n="48" l="Мэтчей" />
-          <Stat n={user ? user.rating.toFixed(1) : '4.9'} l="Рейтинг" />
-        </div>
-
-        <button className="w-full bg-white border border-gray-200 text-gray-800 font-display font-bold py-3.5 rounded-2xl mt-6 flex items-center justify-center gap-2 active:scale-95 transition-transform">
-          <Icon name="Pencil" size={18} /> Редактировать профиль
-        </button>
+        {myActivities.length > 0 && (
+          <div className="text-left mt-6">
+            <Label>Мои активности</Label>
+            <div className="space-y-2">
+              {myActivities.map((a) => {
+                const joined = a.joined_count ?? 0;
+                const left = a.spots_total - joined;
+                return (
+                  <div key={a.id} className="bg-white rounded-2xl p-4 shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-sm font-bold text-[#7B2FF7]">{a.hobby}</span>
+                        <p className="text-sm text-gray-700 mt-0.5">{a.description}</p>
+                        <p className="text-xs text-gray-400 mt-1">{formatDate(a.date)} · {a.time} · {a.place}</p>
+                      </div>
+                      <div className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ml-2 shrink-0 ${left === 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                        <Icon name="Users" size={12} />
+                        {joined}/{a.spots_total}
+                      </div>
+                    </div>
+                    {!a.is_active && (
+                      <div className="mt-2 text-xs text-red-500 font-semibold flex items-center gap-1">
+                        <Icon name="XCircle" size={12} /> Все места заняты — слот закрыт
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Stat({ n, l }: { n: string; l: string }) {
-  return (
-    <div className="bg-white rounded-2xl py-3 shadow-sm">
-      <div className="font-display font-black text-xl bg-gradient-to-r from-grape to-coral bg-clip-text text-transparent">{n}</div>
-      <div className="text-xs text-gray-500">{l}</div>
-    </div>
-  );
-}
-
+// ─── NAV BAR ────────────────────────────────────────────────────────────────
 function NavBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const items: { id: Tab; icon: string; label: string }[] = [
     { id: 'feed', icon: 'Flame', label: 'Лента' },
@@ -433,7 +561,8 @@ function NavBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   return (
     <nav className="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3">
       {items.map((it) => (
-        <button key={it.id} onClick={() => setTab(it.id)} className={`flex flex-col items-center gap-1 transition-colors ${tab === it.id ? 'text-grape' : 'text-gray-400'}`}>
+        <button key={it.id} onClick={() => setTab(it.id)}
+          className={`flex flex-col items-center gap-1 transition-colors ${tab === it.id ? 'text-[#7B2FF7]' : 'text-gray-400'}`}>
           <Icon name={it.icon} size={24} />
           <span className="text-[11px] font-semibold">{it.label}</span>
         </button>
@@ -442,15 +571,26 @@ function NavBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function Label({ children }: { children: React.ReactNode }) {
   return <div className="font-display font-bold text-sm text-gray-800 mb-2">{children}</div>;
 }
 
-function FakeInput({ icon, text, full }: { icon: string; text: string; full?: boolean }) {
+function Stat({ n, l }: { n: string; l: string }) {
   return (
-    <div className={`bg-white border border-gray-200 rounded-2xl px-4 py-3.5 flex items-center gap-2 text-gray-700 ${full ? 'w-full' : ''}`}>
-      <Icon name={icon} size={18} className="text-grape" />
-      <span className="text-sm font-medium truncate">{text}</span>
+    <div className="bg-white rounded-2xl py-3 shadow-sm">
+      <div className="font-display font-black text-xl bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] bg-clip-text text-transparent">{n}</div>
+      <div className="text-xs text-gray-500">{l}</div>
     </div>
   );
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  if (d.toDateString() === today.toDateString()) return 'Сегодня';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Завтра';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
