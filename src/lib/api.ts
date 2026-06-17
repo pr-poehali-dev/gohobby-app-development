@@ -1,6 +1,7 @@
 const AUTH_URL = 'https://functions.poehali.dev/9c97a63a-bd6e-40e7-b744-d0f1cbf1e1d5';
 const PROFILE_URL = 'https://functions.poehali.dev/fb64e669-8d51-4f8f-99bc-155f0be21e24';
 const ACTIVITIES_URL = 'https://functions.poehali.dev/15d1d9a8-72db-4fd3-82b4-1ed456a96c70';
+const UPLOAD_URL = 'https://functions.poehali.dev/aef5f53e-3f1c-4ce3-a18c-ee53dd8864c7';
 
 const REDIRECT_URI = `${window.location.origin}/auth/yandex/callback`;
 
@@ -122,4 +123,16 @@ export async function getMyActivities(): Promise<(ActivityCard & { is_active: bo
   });
   const data = await res.json();
   return data.activities || [];
+}
+
+export async function uploadPhoto(dataUrl: string): Promise<string> {
+  const token = getToken();
+  const res = await fetch(UPLOAD_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token || '' },
+    body: JSON.stringify({ dataUrl }),
+  });
+  const data = await res.json();
+  if (!data.url) throw new Error(data.message || 'upload_failed');
+  return data.url;
 }

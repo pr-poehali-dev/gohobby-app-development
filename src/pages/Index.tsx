@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '@/components/ui/icon';
 import {
   startYandexLogin, getProfile, saveProfile, logout,
-  getFeed, swipeActivity, createActivity, getMyActivities,
+  getFeed, swipeActivity, createActivity, getMyActivities, uploadPhoto,
   UserProfile, ActivityCard,
 } from '@/lib/api';
 
@@ -370,13 +370,37 @@ function CreateSlot({ onCreated }: { onCreated: () => void }) {
   const [time, setTime] = useState('');
   const [place, setPlace] = useState('');
   const [spots, setSpots] = useState(2);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setPhotoPreview(dataUrl);
+      setUploading(true);
+      try {
+        const url = await uploadPhoto(dataUrl);
+        setPhotoUrl(url);
+      } catch {
+        setPhotoPreview(null);
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const submit = async () => {
     if (!desc || !date || !time || !place) return;
     setSaving(true);
-    const res = await createActivity({ hobby, description: desc, date, time, place, spots });
+    const res = await createActivity({ hobby, description: desc, date, time, place, spots, photoUrl });
     setSaving(false);
     if (res.ok) { setDone(true); setTimeout(() => { setDone(false); onCreated(); }, 1200); }
   };
@@ -431,6 +455,39 @@ function CreateSlot({ onCreated }: { onCreated: () => void }) {
         placeholder="Адрес или название места"
         className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-4 outline-none focus:border-[#7B2FF7] text-sm" />
 
+      <Label>Фото активности</Label>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+      <div
+        onClick={() => !uploading && fileRef.current?.click()}
+        className={`relative mb-4 rounded-2xl overflow-hidden border-2 border-dashed transition-colors ${photoPreview ? 'border-[#7B2FF7]' : 'border-gray-200 bg-white'} ${uploading ? 'opacity-70' : 'cursor-pointer hover:border-[#7B2FF7]/60'}`}
+      >
+        {photoPreview ? (
+          <>
+            <img src={photoPreview} alt="" className="w-full h-36 object-cover" />
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+              <span className="text-white font-semibold text-sm">Изменить фото</span>
+            </div>
+            {uploading && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2">
+                <Icon name="LoaderCircle" size={22} className="animate-spin text-white" />
+                <span className="text-white text-sm font-medium">Загружаем...</span>
+              </div>
+            )}
+            {photoUrl && !uploading && (
+              <div className="absolute top-2 right-2 bg-green-500 rounded-full p-1">
+                <Icon name="Check" size={14} className="text-white" />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-400">
+            <Icon name="ImagePlus" size={28} />
+            <span className="text-sm">Нажми, чтобы добавить фото</span>
+            <span className="text-xs text-gray-300">JPG, PNG до 5 МБ</span>
+          </div>
+        )}
+      </div>
+
       <Label>Количество участников</Label>
       <div className="flex items-center gap-4 bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-6">
         <button onClick={() => setSpots((s) => Math.max(1, s - 1))} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-lg active:scale-90 transition-transform">−</button>
@@ -441,7 +498,7 @@ function CreateSlot({ onCreated }: { onCreated: () => void }) {
         <button onClick={() => setSpots((s) => Math.min(10, s + 1))} className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7B2FF7] to-[#FF5E62] flex items-center justify-center font-bold text-white text-lg active:scale-90 transition-transform">+</button>
       </div>
 
-      <button disabled={!desc || !date || !time || !place || saving} onClick={submit}
+      <button disabled={!desc || !date || !time || !place || saving || uploading} onClick={submit}
         className="w-full bg-gradient-to-r from-[#7B2FF7] to-[#FF5E62] text-white font-display font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-50">
         {saving ? 'Публикуем...' : 'Опубликовать слот'}
       </button>

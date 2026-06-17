@@ -1,0 +1,19 @@
+{
+  "tests": [
+    {
+      "name": "CORS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "No token returns 401",
+      "method": "POST",
+      "path": "/",
+      "body": {"dataUrl": "data:image/jpeg;base64,/9j/4A=="},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "unauthorized"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
