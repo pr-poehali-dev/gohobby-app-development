@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/icon';
+import { startYandexLogin, getProfile, saveProfile, logout, UserProfile } from '@/lib/api';
 
 const SQUASH = 'https://cdn.poehali.dev/projects/903a8275-c14c-4a10-a3b0-d0ff80d0e562/files/cd6057af-4edb-40b4-ac87-72d0d7e5309d.jpg';
 const BOARD = 'https://cdn.poehali.dev/projects/903a8275-c14c-4a10-a3b0-d0ff80d0e562/files/156f4f57-d35e-4373-91dd-2798c2b65c5f.jpg';
 const ART = 'https://cdn.poehali.dev/projects/903a8275-c14c-4a10-a3b0-d0ff80d0e562/files/3ae4a4a1-9297-4940-b843-af50c884ede3.jpg';
 
-type Screen = 'onboarding' | 'auth' | 'app';
+type Screen = 'onboarding' | 'auth' | 'setup' | 'app';
 type Tab = 'feed' | 'create' | 'chats' | 'profile';
 
 const HOBBY_LIST = ['🎾 Спорт', '🎲 Настолки', '🎨 Творчество', '🎸 Музыка', '📚 Книги', '🥾 Походы', '🍳 Кулинария', '📷 Фото', '🧗 Скалолазание', '♟️ Шахматы'];
@@ -26,6 +27,28 @@ export default function Index() {
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [slide, setSlide] = useState(0);
   const [tab, setTab] = useState<Tab>('feed');
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    getProfile().then((p) => {
+      if (p) {
+        setUser(p);
+        setScreen(p.birthDate ? 'app' : 'setup');
+      }
+      setChecking(false);
+    });
+  }, []);
+
+  if (checking) {
+    return (
+      <Phone>
+        <div className="h-full flex items-center justify-center bg-gradient-to-br from-grape via-coral to-sunset text-white">
+          <Icon name="LoaderCircle" size={40} className="animate-spin" />
+        </div>
+      </Phone>
+    );
+  }
 
   if (screen === 'onboarding') {
     const s = SLIDES[slide];
@@ -68,14 +91,22 @@ export default function Index() {
             <div className="font-display font-black text-5xl tracking-tight">GoHobby</div>
             <p className="text-white/80 mt-3 text-center text-lg">Хобби веселее вместе</p>
           </div>
-          <button onClick={() => setScreen('app')} className="w-full bg-white text-gray-900 font-display font-bold py-4 rounded-2xl mb-3 flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-xl">
+          <button onClick={() => startYandexLogin().catch(() => alert('Добавьте ключи Яндекс ID в настройках проекта'))} className="w-full bg-white text-gray-900 font-display font-bold py-4 rounded-2xl mb-3 flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-xl">
             <span className="text-xl font-black text-[#FF0000]">Я</span> Войти через Яндекс ID
           </button>
-          <button onClick={() => setScreen('app')} className="w-full bg-white/15 backdrop-blur border border-white/30 text-white font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform">
-            <Icon name="Mail" size={20} /> Войти через Google
+          <button className="w-full bg-white/15 backdrop-blur border border-white/30 text-white font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform opacity-60">
+            <Icon name="Mail" size={20} /> Google — скоро
           </button>
           <p className="text-center text-white/60 text-xs mt-6">Регистрируясь, вы принимаете условия сервиса</p>
         </div>
+      </Phone>
+    );
+  }
+
+  if (screen === 'setup' && user) {
+    return (
+      <Phone>
+        <SetupProfile user={user} onDone={(u) => { setUser(u); setScreen('app'); }} />
       </Phone>
     );
   }
@@ -87,11 +118,55 @@ export default function Index() {
           {tab === 'feed' && <Feed />}
           {tab === 'create' && <CreateSlot />}
           {tab === 'chats' && <Chats />}
-          {tab === 'profile' && <Profile />}
+          {tab === 'profile' && <Profile user={user} onLogout={() => { logout(); setUser(null); setScreen('onboarding'); }} />}
         </div>
         <NavBar tab={tab} setTab={setTab} />
       </div>
     </Phone>
+  );
+}
+
+function SetupProfile({ user, onDone }: { user: UserProfile; onDone: (u: UserProfile) => void }) {
+  const [name, setName] = useState(user.name || '');
+  const [birth, setBirth] = useState(user.birthDate || '');
+  const [hobbies, setHobbies] = useState<string[]>(user.hobbies || []);
+  const [custom, setCustom] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (h: string) => {
+    setHobbies((prev) => prev.includes(h) ? prev.filter((x) => x !== h) : prev.length < 5 ? [...prev, h] : prev);
+  };
+
+  const submit = async () => {
+    setSaving(true);
+    const all = custom.trim() && !hobbies.includes(custom.trim()) ? [...hobbies, custom.trim()].slice(0, 5) : hobbies;
+    await saveProfile({ name, birthDate: birth || null, hobbies: all, photos: user.photos });
+    onDone({ ...user, name, birthDate: birth, hobbies: all });
+  };
+
+  return (
+    <div className="h-full overflow-y-auto px-6 pt-8 pb-8 bg-[#F7F6FB]">
+      <h1 className="font-display font-extrabold text-2xl mb-1">Паспорт хобби</h1>
+      <p className="text-gray-500 mb-6">Заполни профиль, чтобы начать</p>
+
+      <Label>Имя</Label>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Как тебя зовут" className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 mb-5 outline-none focus:border-grape" />
+
+      <Label>Дата рождения</Label>
+      <input type="date" value={birth || ''} onChange={(e) => setBirth(e.target.value)} className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 mb-5 outline-none focus:border-grape text-gray-700" />
+
+      <Label>Хобби (до 5)</Label>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {HOBBY_LIST.map((h) => (
+          <button key={h} onClick={() => toggle(h)} className={`px-3.5 py-2 rounded-full text-sm font-semibold transition-all ${hobbies.includes(h) ? 'bg-gradient-to-r from-grape to-coral text-white shadow-md' : 'bg-white text-gray-700 border border-gray-200'}`}>{h}</button>
+        ))}
+      </div>
+      <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Своё хобби..." className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 mb-6 outline-none focus:border-grape text-sm" />
+
+      <button disabled={!name || saving} onClick={submit} className="w-full bg-gradient-to-r from-grape to-coral text-white font-display font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-50">
+        {saving ? 'Сохраняем...' : 'Готово'}
+      </button>
+    </div>
   );
 }
 
@@ -290,30 +365,36 @@ function Bubble({ me, text }: { me: boolean; text: string }) {
   );
 }
 
-function Profile() {
+function Profile({ user, onLogout }: { user: UserProfile | null; onLogout: () => void }) {
+  const age = user?.birthDate ? Math.floor((Date.now() - new Date(user.birthDate).getTime()) / 3.15576e10) : null;
+  const hobbies = user?.hobbies?.length ? user.hobbies : ['🎨 Творчество', '📷 Фото', '🥾 Походы'];
+  const photos = user?.photos?.length ? user.photos : [ART, BOARD, SQUASH];
+  const avatar = user?.avatar || ART;
+
   return (
     <div className="h-full overflow-y-auto pb-24">
       <div className="h-44 bg-gradient-to-br from-grape via-coral to-sunset relative">
+        <button onClick={onLogout} className="absolute top-4 right-4 bg-white/20 backdrop-blur text-white rounded-full p-2 active:scale-90 transition-transform"><Icon name="LogOut" size={18} /></button>
         <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
-          <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden shadow-xl">
-            <img src={ART} alt="" className="w-full h-full object-cover" />
+          <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden shadow-xl bg-white">
+            <img src={avatar} alt="" className="w-full h-full object-cover" />
           </div>
         </div>
       </div>
       <div className="pt-16 px-5 text-center">
-        <h1 className="font-display font-extrabold text-2xl">Лера, 24</h1>
-        <p className="text-gray-500">Паспорт хобби · 12 активностей</p>
+        <h1 className="font-display font-extrabold text-2xl">{user?.name || 'Гость'}{age ? `, ${age}` : ''}</h1>
+        <p className="text-gray-500">Паспорт хобби</p>
 
         <div className="grid grid-cols-3 gap-2 mt-5">
-          <img src={ART} className="aspect-square rounded-2xl object-cover" alt="" />
-          <img src={BOARD} className="aspect-square rounded-2xl object-cover" alt="" />
-          <img src={SQUASH} className="aspect-square rounded-2xl object-cover" alt="" />
+          {photos.slice(0, 3).map((p, i) => (
+            <img key={i} src={p} className="aspect-square rounded-2xl object-cover" alt="" />
+          ))}
         </div>
 
         <div className="text-left mt-6">
           <Label>Мои хобби</Label>
           <div className="flex flex-wrap gap-2">
-            {['🎨 Творчество', '📷 Фото', '🥾 Походы', '🎲 Настолки', '📚 Книги'].map((h) => (
+            {hobbies.map((h) => (
               <span key={h} className="px-3.5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-grape to-coral text-white">{h}</span>
             ))}
           </div>
@@ -322,7 +403,7 @@ function Profile() {
         <div className="grid grid-cols-3 gap-3 mt-6">
           <Stat n="12" l="Активностей" />
           <Stat n="48" l="Мэтчей" />
-          <Stat n="4.9" l="Рейтинг" />
+          <Stat n={user ? user.rating.toFixed(1) : '4.9'} l="Рейтинг" />
         </div>
 
         <button className="w-full bg-white border border-gray-200 text-gray-800 font-display font-bold py-3.5 rounded-2xl mt-6 flex items-center justify-center gap-2 active:scale-95 transition-transform">
