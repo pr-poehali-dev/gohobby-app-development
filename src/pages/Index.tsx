@@ -89,15 +89,11 @@ export default function Index() {
             <p className="text-white/80 mt-3 text-center text-lg">Хобби веселее вместе</p>
           </div>
           <button
-            onClick={() => startYandexLogin().catch(() => alert('Сначала добавьте YANDEX_CLIENT_ID в настройках проекта'))}
-            className="w-full bg-white text-gray-900 font-display font-bold py-4 rounded-2xl mb-3 flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-xl"
+            onClick={() => setScreen('app')}
+            className="w-full bg-white text-gray-900 font-display font-bold py-4 rounded-2xl active:scale-95 transition-transform shadow-xl flex items-center justify-center gap-3"
           >
-            <span className="text-xl font-black text-[#FF0000]">Я</span> Войти через Яндекс ID
+            <Icon name="ArrowRight" size={20} /> Начать
           </button>
-          <div className="w-full bg-white/10 border border-white/20 text-white/40 font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 cursor-not-allowed select-none">
-            <Icon name="Mail" size={20} /> Почта — скоро
-          </div>
-          <p className="text-center text-white/60 text-xs mt-6">Регистрируясь, вы принимаете условия сервиса</p>
         </div>
       </Phone>
     );
