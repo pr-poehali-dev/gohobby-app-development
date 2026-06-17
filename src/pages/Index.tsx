@@ -94,9 +94,9 @@ export default function Index() {
           >
             <span className="text-xl font-black text-[#FF0000]">Я</span> Войти через Яндекс ID
           </button>
-          <button className="w-full bg-white/15 backdrop-blur border border-white/30 text-white font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 opacity-60">
-            <Icon name="Mail" size={20} /> Google — скоро
-          </button>
+          <div className="w-full bg-white/10 border border-white/20 text-white/40 font-display font-bold py-4 rounded-2xl flex items-center justify-center gap-3 cursor-not-allowed select-none">
+            <Icon name="Mail" size={20} /> Почта — скоро
+          </div>
           <p className="text-center text-white/60 text-xs mt-6">Регистрируясь, вы принимаете условия сервиса</p>
         </div>
       </Phone>
